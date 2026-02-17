@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------------------
+// Core Catalog
+// --------------------------------------------------
+
+model Brand {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  logoUrl     String?
+  websiteUrl  String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([slug])
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  parentId    String?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([slug])
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  name           String
+  slug           String          @unique
+  brandId        String
+  brand          Brand           @relation(fields: [brandId], references: [id])
+  categoryId     String
+  category       Category        @relation(fields: [categoryId], references: [id])
+  description    String?
+  images         String[]        @default([])
+  specs          Json?           @default("{}") // Structured specifications
+  rating         Float?
+  reviewCount    Int             @default(0)
+  
+  // Relations
+  prices         Price[]
+  priceHistory   PriceHistory[]
+  videos         VideoProduct[]
+  comparisonsA   Comparison[]    @relation("ProductA")
+  comparisonsB   Comparison[]    @relation("ProductB")
+  
+  // SEO & Metadata
+  metaTitle      String?
+  metaDescription String?
+  
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([slug])
+  @@index([brandId])
+  @@index([categoryId])
+}
+
+// --------------------------------------------------
+// Monetization & Pricing
+// --------------------------------------------------
+
+model Retailer {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  baseUrl     String?
+  affiliateId String?
+  prices      Price[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Price {
+  id          String    @id @default(cuid())
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  retailerId  String
+  retailer    Retailer  @relation(fields: [retailerId], references: [id])
+  currency    String    @default("USD")
+  amount      Decimal   @db.Decimal(10, 2)
+  url         String    @db.Text
+  inStock     Boolean   @default(true)
+  condition   String    @default("new") // new, used, refurbished
+  lastChecked DateTime  @default(now())
+
+  @@unique([productId, retailerId, condition])
+  @@index([productId])
+  @@index([retailerId])
+}
+
+model PriceHistory {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  date        DateTime @default(now())
+  avgPrice    Decimal  @db.Decimal(10, 2)
+  lowPrice    Decimal  @db.Decimal(10, 2)
+  highPrice   Decimal  @db.Decimal(10, 2)
+  volume      Int?     // Number of sales or listings if available
+  source      String   @default("aggregated")
+
+  @@index([productId])
+  @@index([date])
+}
+
+// --------------------------------------------------
+// Content & Creator Authority
+// --------------------------------------------------
+
+model CreatorProfile {
+  id            String   @id @default(cuid())
+  name          String
+  platform      String   @default("youtube") // youtube, tiktok, instagram
+  platformId    String   // Channel ID
+  slug          String   @unique
+  avatarUrl     String?
+  description   String?
+  subscriberCount Int?
+  
+  videos        CreatorVideo[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([platform, platformId])
+  @@index([slug])
+}
+
+model CreatorVideo {
+  id            String   @id @default(cuid())
+  creatorId     String
+  creator       CreatorProfile @relation(fields: [creatorId], references: [id])
+  platformId    String   @unique // Video ID
+  title         String
+  description   String?  @db.Text
+  publishedAt   DateTime
+  thumbnailUrl  String?
+  viewCount     Int?
+  
+  products      VideoProduct[]
+  
+  // Transcripts/Content Extraction
+  transcript    String?  @db.Text
+  summary       String?  @db.Text
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([creatorId])
+}
+
+model VideoProduct {
+  id          String       @id @default(cuid())
+  videoId     String
+  video       CreatorVideo @relation(fields: [videoId], references: [id])
+  productId   String
+  product     Product      @relation(fields: [productId], references: [id])
+  
+  timestamp   Int?         // Seconds into video where product is mentioned
+  context     String?      // "Review", "Demo", "Comparison", "Mention"
+  sentiment   String?      // "Positive", "Negative", "Neutral"
+
+  createdAt   DateTime     @default(now())
+
+  @@unique([videoId, productId])
+}
+
+// --------------------------------------------------
+// Aggregation & SEO
+// --------------------------------------------------
+
+model Comparison {
+  id             String   @id @default(cuid())
+  productAId     String
+  productA       Product  @relation("ProductA", fields: [productAId], references: [id])
+  productBId     String
+  productB       Product  @relation("ProductB", fields: [productBId], references: [id])
+  
+  slug           String   @unique // product-a-vs-product-b
+  winnerId       String?  // Optional winner for structured data
+  summary        String?  @db.Text
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([productAId])
+  @@index([productBId])
+}
+
+model InternalLink {
+  id          String   @id @default(cuid())
+  sourceUrl   String
+  targetUrl   String
+  anchorText  String
+  type        String   // "automatic", "manual", "curated"
+  
+  createdAt   DateTime @default(now())
+
+  @@index([sourceUrl])
+  @@index([targetUrl])
+}

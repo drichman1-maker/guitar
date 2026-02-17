@@ -1,0 +1,20 @@
+{
+    "name": "@sonic/data-ingestion",
+    "version": "0.0.0",
+    "private": true,
+    "scripts": {
+        "start": "ts-node src/index.ts"
+    },
+    "dependencies": {
+        "@sonic/db": "workspace:*",
+        "axios": "^1.6.7",
+        "cheerio": "^1.0.0-rc.12",
+        "csv-parse": "^5.5.3"
+    },
+    "devDependencies": {
+        "@sonic/config": "workspace:*",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.3.3",
+        "@types/node": "^20.11.19"
+    }
+}
